@@ -26,7 +26,7 @@ func TestNotes_SelectingLoadsContent(t *testing.T) {
 	app := setupTestApp(t)
 	g := createGame(t, app, "My Campaign")
 
-	err := app.sessionView.gameService.SaveNotes(g.ID, "[N:Malichi | Hostile mage]")
+	err := app.gameView.gameService.SaveNotes(g.ID, "[N:Malichi | Hostile mage]")
 	require.NoError(t, err)
 
 	app.gameView.Refresh()
@@ -36,8 +36,8 @@ func TestNotes_SelectingLoadsContent(t *testing.T) {
 	assert.Equal(t, "[N:Malichi | Hostile mage]", app.sessionView.TextArea.GetText())
 	assert.False(t, app.sessionView.TextArea.GetDisabled())
 	assert.Nil(t, app.sessionView.currentSessionID)
-	assert.NotNil(t, app.sessionView.currentGame)
-	assert.Equal(t, g.ID, app.sessionView.currentGame.ID)
+	assert.NotNil(t, app.gameView.currentGame)
+	assert.Equal(t, g.ID, app.gameView.currentGame.ID)
 }
 
 // TestNotes_EmptyNotesEnablesTextArea verifies that selecting Notes on a game
@@ -95,9 +95,9 @@ func TestNotes_AutosavePersistsContent(t *testing.T) {
 	app.sessionView.TextArea.SetText("[N:Malichi | Hostile mage]", false)
 	require.True(t, app.sessionView.isDirty)
 
-	app.sessionView.Autosave()
+	app.Autosave()
 
-	saved, err := app.sessionView.gameService.GetByID(g.ID)
+	saved, err := app.gameView.gameService.GetByID(g.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "[N:Malichi | Hostile mage]", saved.Notes)
 	assert.False(t, app.sessionView.isDirty, "isDirty must clear after autosave")
@@ -118,7 +118,7 @@ func TestNotes_TitleShowsDirtyIndicator(t *testing.T) {
 	require.True(t, app.sessionView.isDirty)
 	assert.Contains(t, app.sessionView.textAreaFrame.GetTitle(), "●")
 
-	app.sessionView.Autosave()
+	app.Autosave()
 	assert.NotContains(t, app.sessionView.textAreaFrame.GetTitle(), "●")
 }
 
@@ -140,10 +140,11 @@ func TestNotes_SwitchToSessionAutosavesNotes(t *testing.T) {
 	app.HandleEvent(&SessionSelectedEvent{
 		BaseEvent: BaseEvent{action: SESSION_SELECTED},
 		SessionID: s.ID,
+		GameID:    g.ID,
 	})
 
 	// Notes were saved.
-	saved, err := app.sessionView.gameService.GetByID(g.ID)
+	saved, err := app.gameView.gameService.GetByID(g.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "NPC notes here", saved.Notes)
 
@@ -151,7 +152,6 @@ func TestNotes_SwitchToSessionAutosavesNotes(t *testing.T) {
 	assert.False(t, app.sessionView.IsNotesMode())
 	require.NotNil(t, app.sessionView.currentSessionID)
 	assert.Equal(t, s.ID, *app.sessionView.currentSessionID)
-	assert.Nil(t, app.sessionView.currentGame)
 }
 
 // TestNotes_SwitchToNotesAutosavesSession verifies that switching from an open
@@ -162,8 +162,7 @@ func TestNotes_SwitchToNotesAutosavesSession(t *testing.T) {
 	s := createSession(t, app, g.ID, "Session One")
 
 	// Load the session.
-	app.sessionView.currentSessionID = &s.ID
-	app.sessionView.Refresh()
+	app.sessionView.SelectSession(s.ID)
 	require.False(t, app.sessionView.IsNotesMode())
 
 	// Type content into the session — isDirty becomes true.
@@ -275,7 +274,7 @@ func TestNotes_ImportFile(t *testing.T) {
 	assert.False(t, app.isPageVisible(FILE_MODAL_ID), "Expected file modal to close after import")
 	assert.Equal(t, "Imported notes content", app.sessionView.TextArea.GetText())
 
-	saved, err := app.sessionView.gameService.GetByID(g.ID)
+	saved, err := app.gameView.gameService.GetByID(g.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Imported notes content", saved.Notes)
 }
@@ -286,7 +285,7 @@ func TestNotes_ExportFile(t *testing.T) {
 	app := setupTestApp(t)
 	g := createGame(t, app, "My Campaign")
 
-	err := app.sessionView.gameService.SaveNotes(g.ID, "Notes to export")
+	err := app.gameView.gameService.SaveNotes(g.ID, "Notes to export")
 	require.NoError(t, err)
 
 	app.gameView.Refresh()

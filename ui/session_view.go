@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"soloterm/domain/game"
 	"soloterm/domain/session"
 	"soloterm/domain/tag"
 	sharedui "soloterm/shared/ui"
@@ -24,10 +23,9 @@ type SessionView struct {
 	fileFormContainer *tview.Flex
 	app               *App
 	sessionService    *session.Service
-	gameService       *game.Service
 	currentSessionID  *int64
 	currentSession    *session.Session
-	currentGame       *game.Game // set when notes are loaded; nil otherwise
+	isNotes           bool
 	isLoading         bool
 	isDirty           bool
 	isImporting       bool
@@ -37,7 +35,7 @@ type SessionView struct {
 
 // IsNotesMode reports whether the pane is displaying game notes rather than a session.
 func (sv *SessionView) IsNotesMode() bool {
-	return sv.currentSessionID == nil && sv.currentGame != nil
+	return sv.isNotes
 }
 
 const (
@@ -45,11 +43,10 @@ const (
 )
 
 // NewSessionView creates a new session view helper
-func NewSessionView(app *App, service *session.Service, gameService *game.Service) *SessionView {
+func NewSessionView(app *App, service *session.Service) *SessionView {
 	sessionView := &SessionView{
 		app:            app,
 		sessionService: service,
-		gameService:    gameService,
 		isDirty:        false,
 	}
 
@@ -219,14 +216,14 @@ func (sv *SessionView) setupKeyBindings() {
 			return nil
 		case tcell.KeyF5:
 			if sv.currentSessionID != nil || sv.IsNotesMode() {
-				sv.Autosave()
+				sv.app.Autosave()
 				sv.app.HandleEvent(&SearchShowEvent{
 					BaseEvent: BaseEvent{action: SEARCH_SHOW},
 				})
 			}
 		case tcell.KeyCtrlT:
 			if sv.currentSessionID != nil || sv.IsNotesMode() {
-				sv.Autosave()
+				sv.app.Autosave()
 				sv.app.HandleEvent(&TagShowEvent{
 					BaseEvent: BaseEvent{action: TAG_SHOW},
 				})
@@ -287,10 +284,11 @@ func (sv *SessionView) setupFocusHandlers() {
 func (sv *SessionView) Reset() {
 	sv.currentSessionID = nil
 	sv.currentSession = nil
-	sv.currentGame = nil
+	sv.isNotes = false
 	sv.isLoading = false
 	sv.isDirty = false
 	sv.isImporting = false
+	sv.stopAutosave()
 }
 
 func (sv *SessionView) SetText(text string, cursorAtEnd bool) {
@@ -301,12 +299,16 @@ func (sv *SessionView) SetText(text string, cursorAtEnd bool) {
 
 // Refresh reloads the session tree from the database and restores selection
 func (sv *SessionView) Refresh() {
-	sv.Autosave()
+	sv.app.Autosave()
 
 	if sv.IsNotesMode() {
+		g := sv.app.CurrentGame()
+		if g == nil {
+			return
+		}
 		sv.updateTitle()
-		if sv.currentGame.Notes != sv.TextArea.GetText() {
-			sv.SetText(sv.currentGame.Notes, false)
+		if g.Notes != sv.TextArea.GetText() {
+			sv.SetText(g.Notes, false)
 		}
 		sv.TextArea.SetDisabled(false)
 		return
@@ -499,10 +501,11 @@ Type to enter text.
 
 // ShowEditModal displays the session form modal for editing an existing session
 func (sv *SessionView) ShowEditModal(sessionID int64) {
-	sv.Autosave()
+	sv.app.Autosave()
 	session, err := sv.sessionService.GetByID(sessionID)
 	if err != nil {
 		sv.app.notification.ShowError(fmt.Sprintf("Error loading session: %v", err))
+		return
 	}
 
 	sv.app.HandleEvent(&SessionShowEditEvent{
@@ -514,7 +517,11 @@ func (sv *SessionView) ShowEditModal(sessionID int64) {
 func (sv *SessionView) updateTitle() {
 	keyHelp := " ([" + Style.HelpKeyTextColor + "]Ctrl+L[" + Style.NormalTextColor + "]) "
 	if sv.IsNotesMode() {
-		body := tview.Escape(sv.currentGame.Name) + ": Notes"
+		g := sv.app.CurrentGame()
+		if g == nil {
+			return
+		}
+		body := tview.Escape(g.Name) + ": Notes"
 		prefix := ""
 		if sv.isDirty {
 			prefix = "[" + Style.ErrorTextColor + "]●[-] "
@@ -533,38 +540,6 @@ func (sv *SessionView) updateTitle() {
 	sv.textAreaFrame.SetTitle(" " + prefix + "[::b]" + body + keyHelp)
 }
 
-// Autosave persists the current TextArea content if dirty
-func (sv *SessionView) Autosave() {
-	if !sv.isDirty {
-		return
-	}
-	if sv.IsNotesMode() {
-		content := sv.TextArea.GetText()
-		err := sv.gameService.SaveNotes(sv.currentGame.ID, content)
-		if err != nil {
-			sv.app.notification.ShowError(fmt.Sprintf("Autosave failed: %v", err))
-			return
-		}
-		sv.currentGame.Notes = content
-		sv.isDirty = false
-		sv.updateTitle()
-		sv.stopAutosave()
-		return
-	}
-	if sv.currentSession == nil {
-		return
-	}
-	sv.currentSession.Content = sv.TextArea.GetText()
-	_, err := sv.sessionService.Save(sv.currentSession)
-	if err != nil {
-		sv.app.notification.ShowError(fmt.Sprintf("Autosave failed: %v", err))
-		return
-	}
-	sv.isDirty = false
-	sv.updateTitle()
-	sv.stopAutosave()
-}
-
 func (sv *SessionView) startAutosave() {
 	if sv.autosaveTicker != nil {
 		return
@@ -578,7 +553,7 @@ func (sv *SessionView) startAutosave() {
 			select {
 			case <-ticker.C:
 				sv.app.QueueUpdateDraw(func() {
-					sv.Autosave()
+					sv.app.Autosave()
 				})
 			case <-stop:
 				return
@@ -596,6 +571,22 @@ func (sv *SessionView) stopAutosave() {
 		close(sv.autosaveStop)
 		sv.autosaveStop = nil
 	}
+}
+
+// SelectSession switches to session mode and loads the given session into the editor.
+func (sv *SessionView) SelectSession(sessionID int64) {
+	sv.isNotes = false
+	sv.currentSession = nil
+	sv.currentSessionID = &sessionID
+	sv.Refresh()
+}
+
+// SelectNotes switches to notes mode and loads the active game's notes into the editor.
+func (sv *SessionView) SelectNotes() {
+	sv.isNotes = true
+	sv.currentSession = nil
+	sv.currentSessionID = nil
+	sv.Refresh()
 }
 
 func (sv *SessionView) InsertAtCursor(template string) {

@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"soloterm/config"
-	"soloterm/domain/game"
 	"soloterm/domain/tag"
 	"soloterm/shared/text"
 	"strings"
@@ -17,7 +16,6 @@ type TagView struct {
 	app             *App
 	cfg             *config.Config
 	tagService      *tag.Service
-	gameService     *game.Service
 	Modal           *tview.Flex
 	tagModalContent *tview.Flex
 	tagFrame        *tview.Frame
@@ -27,8 +25,8 @@ type TagView struct {
 }
 
 // NewTagView creates a new tag view
-func NewTagView(app *App, cfg *config.Config, tagService *tag.Service, gameService *game.Service) *TagView {
-	tagView := &TagView{app: app, cfg: cfg, tagService: tagService, gameService: gameService}
+func NewTagView(app *App, cfg *config.Config, tagService *tag.Service) *TagView {
+	tagView := &TagView{app: app, cfg: cfg, tagService: tagService}
 
 	tagView.Setup()
 
@@ -104,19 +102,12 @@ func (tv *TagView) Refresh() {
 		SetAlign(tview.AlignLeft).
 		SetSelectable(false))
 
-	// Get the currently selected game
+	// Get the currently active game
 	var gameID int64
-	gameState := tv.app.GetSelectedGameState()
-	if gameState != nil && gameState.GameID != nil {
-		gameID = *gameState.GameID
-	}
-
-	// Fetch notes content for the current game
-	notesContent := ""
-	if gameID != 0 {
-		if g, err := tv.gameService.GetByID(gameID); err == nil {
-			notesContent = g.Notes
-		}
+	var notesContent string
+	if g := tv.app.CurrentGame(); g != nil {
+		gameID = g.ID
+		notesContent = g.Notes
 	}
 
 	// Load tags: configured, active (from sessions), and notes

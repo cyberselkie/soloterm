@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"soloterm/domain/game"
 	"soloterm/domain/session"
 	"strings"
 
@@ -22,7 +21,6 @@ type searchMatch struct {
 type SearchView struct {
 	app                *App
 	sessionService     *session.Service
-	gameService        *game.Service
 	Modal              *tview.Flex
 	searchModalContent *tview.Flex
 	searchFrame        *tview.Frame
@@ -35,8 +33,8 @@ type SearchView struct {
 }
 
 // NewSearchView creates a new search view
-func NewSearchView(app *App, sessionService *session.Service, gameService *game.Service) *SearchView {
-	searchView := &SearchView{app: app, sessionService: sessionService, gameService: gameService}
+func NewSearchView(app *App, sessionService *session.Service) *SearchView {
+	searchView := &SearchView{app: app, sessionService: sessionService}
 	searchView.setup()
 	return searchView
 }
@@ -212,13 +210,13 @@ func (sv *SearchView) performSearch(key tcell.Key) {
 		return
 	}
 
-	gameState := sv.app.GetSelectedGameState()
-	if gameState == nil || gameState.GameID == nil {
+	g := sv.app.CurrentGame()
+	if g == nil {
 		sv.searchTextView.SetText("No game selected.")
 		return
 	}
 
-	sessions, err := sv.sessionService.SearchByGame(*gameState.GameID, term)
+	sessions, err := sv.sessionService.SearchByGame(g.ID, term)
 	if err != nil {
 		sv.searchTextView.SetText("Search error: " + err.Error())
 		return
@@ -231,7 +229,7 @@ func (sv *SearchView) performSearch(key tcell.Key) {
 	var b strings.Builder
 
 	// Search game notes first
-	if g, err := sv.gameService.GetByID(*gameState.GameID); err == nil && g.Notes != "" {
+	if g.Notes != "" {
 		sv.searchContent(&b, g.Notes, "Notes", term, 0, true)
 	}
 

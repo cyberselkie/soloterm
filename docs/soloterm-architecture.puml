@@ -17,10 +17,12 @@ package "domain" <<Rectangle>> DOMAIN_COLOR {
 
         class GameService {
             + Save, Delete, GetByID, GetAll
+            + SaveNotes(gameID, notes)
         }
 
         class GameRepository {
             + Save, Delete, GetByID, GetAll
+            + SaveNotes(gameID, notes)
         }
     }
 
@@ -104,7 +106,7 @@ package "ui" <<Rectangle>> UI_COLOR {
         --
         - gameView, sessionView
         - characterView, attributeView
-        - tagView
+        - tagView, diceView, searchView
         --
         <b>UI Components</b>
         - pages, leftSidebar
@@ -112,6 +114,9 @@ package "ui" <<Rectangle>> UI_COLOR {
         - helpModal, aboutModal, footer
         --
         + HandleEvent(event Event)
+        + CurrentGame(): *game.Game
+        + CurrentSession(): *session.Session
+        + Autosave()
         + isPageVisible(pageID): bool
     }
 
@@ -119,9 +124,11 @@ package "ui" <<Rectangle>> UI_COLOR {
         class GameView {
             - gameService, sessionService
             - helper: *GameViewHelper
+            - currentGame: *game.Game
             --
             + Setup(), Refresh()
             + SelectGame(), SelectSession()
+            + SetCurrentGame(gameID): error
             + HandleSave(), HandleCancel()
             + HandleDelete(), ConfirmDelete()
         }
@@ -129,12 +136,14 @@ package "ui" <<Rectangle>> UI_COLOR {
         class SessionView {
             - sessionService
             - TextArea, autosaveTicker
-            - isDirty, isLoading
+            - isNotes, isDirty, isLoading
             --
             + Setup(), Refresh()
+            + SelectSession(sessionID)
+            + SelectNotes()
+            + IsNotesMode(): bool
             + HandleSave(), HandleCancel()
             + HandleDelete(), ConfirmDelete()
-            + Autosave()
         }
 
         class CharacterView {
@@ -161,6 +170,18 @@ package "ui" <<Rectangle>> UI_COLOR {
             + Setup(), LoadTags()
             + SelectTag()
         }
+
+        class SearchView {
+            - sessionService
+            - matches, currentMatchIdx
+            --
+            + Setup(), Reset()
+            - performSearch()
+        }
+
+        class DiceView {
+            + Setup()
+        }
     }
 
     package "Events" {
@@ -184,6 +205,10 @@ package "ui" <<Rectangle>> UI_COLOR {
             - TagSelectedEvent, TagShowEvent
             - ShowHelpEvent, CloseHelpEvent
             - CharacterDuplicatedEvent
+            - GameNotesSelectedEvent
+            - SessionSelectedEvent (+ GameID)
+            - SearchSelectResultEvent
+            - DiceShowEvent
         end note
     }
 
@@ -192,6 +217,7 @@ package "ui" <<Rectangle>> UI_COLOR {
         class SessionForm
         class CharacterForm
         class AttributeForm
+        class FileForm
 
         interface DataForm {
             + BuildDomain(): Entity
@@ -222,6 +248,23 @@ package "ui" <<Rectangle>> UI_COLOR {
         -> HandleEvent(GameSavedEvent)
         -> handleGameSaved()
         -> refresh, notify, focus
+    end note
+
+    note as OwnershipNote
+        <b>Active-Selection Ownership</b>
+
+        GameView owns active game context:
+        - currentGame set by SetCurrentGame()
+        - App.CurrentGame() reads it
+
+        SessionView owns active session context:
+        - currentSessionID / isNotes flag
+        - SelectSession() / SelectNotes()
+
+        App orchestrates cross-domain saves:
+        - Autosave() saves notes via
+          gameView.gameService.SaveNotes()
+          or session via sessionService
     end note
 }
 
@@ -309,6 +352,8 @@ App *-- SessionView
 App *-- CharacterView
 App *-- AttributeView
 App *-- TagView
+App *-- SearchView
+App *-- DiceView
 App *-- Notification
 App *-- ConfirmationModal
 App *-- HelpModal
@@ -318,6 +363,7 @@ SessionView ..> Event : dispatches
 CharacterView ..> Event : dispatches
 AttributeView ..> Event : dispatches
 TagView ..> Event : dispatches
+SearchView ..> Event : dispatches
 
 App ..> Event : handles
 
@@ -327,6 +373,8 @@ SessionView --> SessionService
 CharacterView --> CharacterService
 AttributeView --> AttributeService
 TagView --> TagService
+SearchView --> SessionService
+App --> GameService : Autosave() notes
 
 GameForm ..|> DataForm
 SessionForm ..|> DataForm

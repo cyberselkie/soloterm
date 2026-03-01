@@ -10,7 +10,7 @@ import (
 
 func (a *App) handleSessionShowNew(e *SessionShowNewEvent) {
 	a.sessionView.Modal.SetTitle(" New Session ")
-	selectedGameState := a.GetSelectedGameState()
+	selectedGameState := a.gameView.GetCurrentSelection()
 	if selectedGameState == nil {
 		a.notification.ShowWarning("Select a game before adding a session.")
 		return
@@ -26,30 +26,27 @@ func (a *App) handleSessionCancelled(e *SessionCancelledEvent) {
 }
 
 func (a *App) handleGameNotesSelected(e *GameNotesSelectedEvent) {
-	a.sessionView.Autosave() // persist current content before switching modes
-	g, err := a.sessionView.gameService.GetByID(e.GameID)
-	if err != nil {
+	a.Autosave()
+	if err := a.gameView.SetCurrentGame(e.GameID); err != nil {
 		a.notification.ShowError(fmt.Sprintf("Error loading notes: %v", err))
 		return
 	}
-	a.sessionView.currentSessionID = nil
-	a.sessionView.currentSession = nil
-	a.sessionView.currentGame = g
-	a.sessionView.Refresh()
+	a.sessionView.SelectNotes()
 }
 
 func (a *App) handleSessionSelected(e *SessionSelectedEvent) {
-	a.sessionView.Autosave() // persist notes or session content before switching
-	a.sessionView.currentGame = nil
-	a.sessionView.currentSessionID = &e.SessionID
-	a.sessionView.Refresh()
+	a.Autosave()
+	if err := a.gameView.SetCurrentGame(e.GameID); err != nil {
+		a.notification.ShowError(fmt.Sprintf("Error loading session: %v", err))
+		return
+	}
+	a.sessionView.SelectSession(e.SessionID)
 }
 
 func (a *App) handleSessionSaved(e *SessionSavedEvent) {
 	a.sessionView.Form.ClearFieldErrors()
 	a.pages.HidePage(SESSION_MODAL_ID)
-	a.sessionView.currentSessionID = &e.Session.ID
-	a.sessionView.Refresh()
+	a.sessionView.SelectSession(e.Session.ID)
 	a.gameView.Refresh()
 	a.gameView.SelectSession(e.Session.ID)
 	a.SetFocus(a.sessionView.TextArea)
@@ -147,7 +144,7 @@ func (a *App) handleSessionImport(_ *SessionImportEvent) {
 		return
 	}
 
-	sv.Autosave()
+	a.Autosave()
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -177,7 +174,7 @@ func (a *App) handleSessionImport(_ *SessionImportEvent) {
 		sv.isDirty = true
 		sv.updateTitle()
 	}
-	sv.Autosave()
+	a.Autosave()
 
 	a.HandleEvent(&SessionImportDoneEvent{
 		BaseEvent: BaseEvent{action: SESSION_IMPORT_DONE},

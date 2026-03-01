@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"fmt"
 	"slices"
 	"soloterm/config"
 	"soloterm/database"
@@ -85,12 +86,12 @@ func NewApp(db *database.DBStore, cfg *config.Config, info AppInfo) *App {
 
 	// Initialize views
 	app.gameView = NewGameView(app, gameService, sessionService)
-	app.sessionView = NewSessionView(app, sessionService, gameService)
-	app.tagView = NewTagView(app, cfg, tagService, gameService)
+	app.sessionView = NewSessionView(app, sessionService)
+	app.tagView = NewTagView(app, cfg, tagService)
 	app.attributeView = NewAttributeView(app, attrService)
 	app.characterView = NewCharacterView(app, charService)
 	app.diceView = NewDiceView(app)
-	app.searchView = NewSearchView(app, sessionService, gameService)
+	app.searchView = NewSearchView(app, sessionService)
 
 	app.setupUI()
 	return app
@@ -218,7 +219,7 @@ func (a *App) setupKeyBindings() {
 				return nil
 			}
 		case tcell.KeyCtrlQ:
-			a.sessionView.Autosave()
+			a.Autosave()
 			a.Stop()
 			return nil
 		case tcell.KeyCtrlG:
@@ -308,8 +309,46 @@ func (a *App) isPageVisible(pageID string) bool {
 	return slices.Contains(a.pages.GetPageNames(true), pageID)
 }
 
-func (a *App) GetSelectedGameState() *GameState {
-	return a.gameView.GetCurrentSelection()
+func (a *App) CurrentGame() *game.Game {
+	return a.gameView.currentGame
+}
+
+func (a *App) CurrentSession() *session.Session {
+	return a.sessionView.currentSession
+}
+
+func (a *App) Autosave() {
+	sv := a.sessionView
+	if !sv.isDirty {
+		return
+	}
+	if sv.IsNotesMode() {
+		g := a.CurrentGame()
+		if g == nil {
+			return
+		}
+		content := sv.TextArea.GetText()
+		if err := a.gameView.gameService.SaveNotes(g.ID, content); err != nil {
+			a.notification.ShowError(fmt.Sprintf("Autosave failed: %v", err))
+			return
+		}
+		g.Notes = content
+		sv.isDirty = false
+		sv.updateTitle()
+		sv.stopAutosave()
+		return
+	}
+	if sv.currentSession == nil {
+		return
+	}
+	sv.currentSession.Content = sv.TextArea.GetText()
+	if _, err := sv.sessionService.Save(sv.currentSession); err != nil {
+		a.notification.ShowError(fmt.Sprintf("Autosave failed: %v", err))
+		return
+	}
+	sv.isDirty = false
+	sv.updateTitle()
+	sv.stopAutosave()
 }
 
 func (a *App) GetSelectedCharacterID() *int64 {
@@ -332,8 +371,6 @@ func (a *App) HandleEvent(event Event) {
 		dispatch(event, a.handleGameShowEdit)
 	case GAME_SHOW_NEW:
 		dispatch(event, a.handleGameShowNew)
-	case GAME_SELECTED:
-		dispatch(event, a.handleGameSelected)
 	case GAME_NOTES_SELECTED:
 		dispatch(event, a.handleGameNotesSelected)
 	case CHARACTER_SAVED:

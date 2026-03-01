@@ -107,8 +107,8 @@ func TestTagView_ShowsRecentTagsFromSession(t *testing.T) {
 	// Select the session and open the tag modal
 	app.gameView.Refresh()
 	app.gameView.SelectSession(s.ID)
-	app.sessionView.currentSessionID = &s.ID
-	app.sessionView.Refresh()
+	require.NoError(t, app.gameView.SetCurrentGame(g.ID))
+	app.sessionView.SelectSession(s.ID)
 	app.SetFocus(app.sessionView.TextArea)
 	testHelper.SimulateKey(app.sessionView.TextArea, app.Application, tcell.KeyCtrlT)
 
@@ -152,8 +152,8 @@ func TestTagView_ExcludesClosedTags(t *testing.T) {
 	// Select and open tag modal
 	app.gameView.Refresh()
 	app.gameView.SelectSession(s.ID)
-	app.sessionView.currentSessionID = &s.ID
-	app.sessionView.Refresh()
+	require.NoError(t, app.gameView.SetCurrentGame(g.ID))
+	app.sessionView.SelectSession(s.ID)
 	app.SetFocus(app.sessionView.TextArea)
 	testHelper.SimulateKey(app.sessionView.TextArea, app.Application, tcell.KeyCtrlT)
 
@@ -193,7 +193,7 @@ func TestTagView_ShowHelpModal(t *testing.T) {
 func openTagModalFromNotes(t *testing.T, app *App, notesContent string) *game.Game {
 	t.Helper()
 	g := createGame(t, app, "Test Game")
-	err := app.sessionView.gameService.SaveNotes(g.ID, notesContent)
+	err := app.gameView.gameService.SaveNotes(g.ID, notesContent)
 	require.NoError(t, err)
 	app.gameView.Refresh()
 	selectNotes(t, app)
@@ -246,7 +246,7 @@ func TestTagView_NoteTagsIndependentOfSessionClose(t *testing.T) {
 	g := createGame(t, app, "Test Game")
 
 	// Notes contain Malichi as an open tag.
-	err := app.sessionView.gameService.SaveNotes(g.ID, "[N:Malichi | Hostile mage]")
+	err := app.gameView.gameService.SaveNotes(g.ID, "[N:Malichi | Hostile mage]")
 	require.NoError(t, err)
 
 	// A session closes Malichi.
@@ -297,7 +297,7 @@ func TestTagView_ShowsBothActiveAndNotesTags(t *testing.T) {
 	app := setupTestApp(t)
 	g := createGame(t, app, "Test Game")
 
-	err := app.sessionView.gameService.SaveNotes(g.ID, "[N:Malichi | Hostile mage]")
+	err := app.gameView.gameService.SaveNotes(g.ID, "[N:Malichi | Hostile mage]")
 	require.NoError(t, err)
 
 	s := createSession(t, app, g.ID, "Session One")

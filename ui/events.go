@@ -20,7 +20,6 @@ const (
 	GAME_CANCEL                 UserAction = "game_cancel"
 	GAME_SHOW_NEW               UserAction = "game_show_new"
 	GAME_SHOW_EDIT              UserAction = "game_show_edit"
-	GAME_SELECTED               UserAction = "game_selected"
 	GAME_NOTES_SELECTED         UserAction = "game_notes_selected"
 	CHARACTER_SAVED             UserAction = "character_saved"
 	CHARACTER_DELETED           UserAction = "character_deleted"
@@ -119,10 +118,6 @@ type GameShowEditEvent struct {
 }
 
 type GameShowNewEvent struct {
-	BaseEvent
-}
-
-type GameSelectedEvent struct {
 	BaseEvent
 }
 
@@ -270,6 +265,7 @@ type SessionCancelledEvent struct {
 type SessionSelectedEvent struct {
 	BaseEvent
 	SessionID int64
+	GameID    int64
 }
 
 type SessionDeleteConfirmEvent struct {

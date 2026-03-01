@@ -28,7 +28,7 @@ func openSearchFromNotes(t *testing.T, app *App) {
 func TestSearch_FindsMatchInNotes(t *testing.T) {
 	app := setupTestApp(t)
 	g := createGame(t, app, "Campaign")
-	err := app.sessionView.gameService.SaveNotes(g.ID, "Malichi is a hostile mage")
+	err := app.gameView.gameService.SaveNotes(g.ID, "Malichi is a hostile mage")
 	require.NoError(t, err)
 
 	openSearchFromNotes(t, app)
@@ -43,7 +43,7 @@ func TestSearch_FindsMatchesInBothSessionsAndNotes(t *testing.T) {
 	app := setupTestApp(t)
 	g := createGame(t, app, "Campaign")
 
-	err := app.sessionView.gameService.SaveNotes(g.ID, "dragon sighted in the north")
+	err := app.gameView.gameService.SaveNotes(g.ID, "dragon sighted in the north")
 	require.NoError(t, err)
 
 	s := createSession(t, app, g.ID, "Session One")
@@ -72,7 +72,7 @@ func TestSearch_FindsMatchesInBothSessionsAndNotes(t *testing.T) {
 func TestSearch_NoNotesMatchWhenTermAbsent(t *testing.T) {
 	app := setupTestApp(t)
 	g := createGame(t, app, "Campaign")
-	err := app.sessionView.gameService.SaveNotes(g.ID, "Malichi is a hostile mage")
+	err := app.gameView.gameService.SaveNotes(g.ID, "Malichi is a hostile mage")
 	require.NoError(t, err)
 
 	openSearchFromNotes(t, app)
@@ -84,7 +84,7 @@ func TestSearch_NoNotesMatchWhenTermAbsent(t *testing.T) {
 func TestSearch_SelectNotesResult_LoadsNotesPane(t *testing.T) {
 	app := setupTestApp(t)
 	g := createGame(t, app, "Campaign")
-	err := app.sessionView.gameService.SaveNotes(g.ID, "Malichi is a hostile mage")
+	err := app.gameView.gameService.SaveNotes(g.ID, "Malichi is a hostile mage")
 	require.NoError(t, err)
 
 	openSearchFromNotes(t, app)
@@ -98,14 +98,14 @@ func TestSearch_SelectNotesResult_LoadsNotesPane(t *testing.T) {
 	})
 
 	assert.True(t, app.sessionView.IsNotesMode(), "Expected notes mode after selecting a notes result")
-	assert.Equal(t, g.ID, app.sessionView.currentGame.ID)
+	assert.Equal(t, g.ID, app.gameView.currentGame.ID)
 	assert.False(t, app.isPageVisible(SEARCH_MODAL_ID), "Expected search modal to be hidden")
 }
 
 func TestSearch_SelectNotesResult_SelectsNotesNodeInTree(t *testing.T) {
 	app := setupTestApp(t)
 	g := createGame(t, app, "Campaign")
-	err := app.sessionView.gameService.SaveNotes(g.ID, "Malichi is a hostile mage")
+	err := app.gameView.gameService.SaveNotes(g.ID, "Malichi is a hostile mage")
 	require.NoError(t, err)
 
 	openSearchFromNotes(t, app)
@@ -127,7 +127,7 @@ func TestSearch_NotesOnlyResult_NoSessionsNeeded(t *testing.T) {
 	// Search works and returns notes results even when the game has no sessions.
 	app := setupTestApp(t)
 	g := createGame(t, app, "Campaign")
-	err := app.sessionView.gameService.SaveNotes(g.ID, "tower of the archmage")
+	err := app.gameView.gameService.SaveNotes(g.ID, "tower of the archmage")
 	require.NoError(t, err)
 
 	openSearchFromNotes(t, app)

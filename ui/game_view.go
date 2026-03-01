@@ -12,10 +12,10 @@ import (
 
 // GameView provides game-specific UI operations
 type GameView struct {
-	app            *App
-	gameService    *game.Service
-	helper         *GameViewHelper
-	selectedGameID *int64
+	app         *App
+	gameService *game.Service
+	helper      *GameViewHelper
+	currentGame *game.Game // the explicitly loaded active game
 
 	Tree  *tview.TreeView
 	Form  *GameForm
@@ -92,6 +92,7 @@ func (gv *GameView) setupTreeView() {
 		gv.app.HandleEvent(&SessionSelectedEvent{
 			BaseEvent: BaseEvent{action: SESSION_SELECTED},
 			SessionID: *currentSelection.SessionID,
+			GameID:    *currentSelection.GameID,
 		})
 	})
 }
@@ -178,10 +179,6 @@ func (gv *GameView) setupFocusHandlers() {
 func (gv *GameView) Refresh() {
 	// Remember the current selection, if there is one.
 	currentSelection := gv.GetCurrentSelection()
-
-	// If there's a saved game in the state, clear it out. It was set during
-	// the save game process.
-	gv.selectedGameID = nil
 
 	root := gv.Tree.GetRoot()
 	root.ClearChildren()
@@ -277,7 +274,6 @@ func (gv *GameView) SelectGame(gameID *int64) {
 
 	// If nil is provided, clear the selection
 	if gameID == nil {
-		gv.selectedGameID = nil
 		gv.Tree.SetCurrentNode(gv.Tree.GetRoot())
 		return
 	}
@@ -351,31 +347,28 @@ func (gv *GameView) SelectSession(sessionID int64) {
 }
 
 func (gv *GameView) GetCurrentSelection() *GameState {
-	// If there's a game ID in the selectedGameID variable, then a new game
-	// was saved. Use it for the current selection so it will be selected when
-	// the game tree is redrawn.
-	if gv.selectedGameID != nil {
-		return &GameState{GameID: gv.selectedGameID}
-	}
-
-	// Pull the data from the tree view
 	treeRef := gv.Tree.GetCurrentNode().GetReference()
 	if treeRef != nil {
-		ref, ok := treeRef.(*GameState)
-		if ok {
+		if ref, ok := treeRef.(*GameState); ok {
 			return ref
 		}
 	}
+	return nil
+}
 
+// SetCurrentGame loads a game by ID and stores it as the active game context.
+func (gv *GameView) SetCurrentGame(gameID int64) error {
+	g, err := gv.gameService.GetByID(gameID)
+	if err != nil {
+		return err
+	}
+	gv.currentGame = g
 	return nil
 }
 
 // HandleSave processes game save operation
 func (gv *GameView) HandleSave() {
 	gameEntity := gv.Form.BuildDomain()
-
-	// Remember if this is a new game being saved.
-	newGame := gameEntity.IsNew()
 
 	savedGame, err := gv.gameService.Save(gameEntity)
 	if err != nil {
@@ -387,12 +380,6 @@ func (gv *GameView) HandleSave() {
 		// Other errors
 		gv.app.notification.ShowError(fmt.Sprintf("Error saving game: %v", err))
 		return
-	}
-
-	// Store the saved game in state so the refresh process will be able to highlight it
-	// when the game tree is redisplayed
-	if newGame {
-		gv.selectedGameID = &savedGame.ID
 	}
 
 	gv.app.HandleEvent(&GameSavedEvent{

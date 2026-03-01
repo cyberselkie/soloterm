@@ -3,8 +3,8 @@ package ui
 func (a *App) handleGameSaved(e *GameSavedEvent) {
 	a.gameView.Form.Reset()
 	a.pages.HidePage(GAME_MODAL_ID)
-	a.gameView.SelectGame(&e.Game.ID)
 	a.gameView.Refresh()
+	a.gameView.SelectGame(&e.Game.ID)
 	a.SetFocus(a.gameView.Tree)
 	a.notification.ShowSuccess("Game saved successfully")
 }
@@ -72,7 +72,4 @@ func (a *App) handleGameShowNew(_ *GameShowNewEvent) {
 	a.gameView.Form.Reset()
 	a.pages.ShowPage(GAME_MODAL_ID)
 	a.SetFocus(a.gameView.Form)
-}
-
-func (a *App) handleGameSelected(_ *GameSelectedEvent) {
 }
