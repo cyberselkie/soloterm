@@ -164,7 +164,8 @@ func (a *App) handleSessionImport(_ *SessionImportEvent) {
 		sv.isDirty = true
 		sv.updateTitle()
 	case ImportAfter:
-		sv.SetText(sv.TextArea.GetText()+content, false)
+		combined := sv.TextArea.GetText() + content
+		sv.SetText(combined, true)
 		sv.isDirty = true
 		sv.updateTitle()
 	case ImportAtCursor:
