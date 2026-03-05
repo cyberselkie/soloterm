@@ -306,10 +306,10 @@ func (sv *SessionView) Refresh() {
 		if g == nil {
 			return
 		}
-		sv.updateTitle()
 		if g.Notes != sv.TextArea.GetText() {
 			sv.SetText(g.Notes, false)
 		}
+		sv.updateTitle()
 		sv.TextArea.SetDisabled(false)
 		return
 	}
@@ -328,12 +328,12 @@ func (sv *SessionView) Refresh() {
 	}
 
 	sv.currentSession = loadedSession
-	sv.updateTitle()
 
 	// Skip SetText if content is unchanged (e.g. rename) to preserve cursor and scroll
 	if loadedSession.Content != sv.TextArea.GetText() {
 		sv.SetText(loadedSession.Content, false)
 	}
+	sv.updateTitle()
 	sv.TextArea.SetDisabled(false)
 }
 
@@ -516,28 +516,34 @@ func (sv *SessionView) ShowEditModal(sessionID int64) {
 
 func (sv *SessionView) updateTitle() {
 	keyHelp := " ([" + Style.HelpKeyTextColor + "]Ctrl+L[" + Style.NormalTextColor + "]) "
+	counts := sv.wordCharCount()
+	prefix := ""
+	body := ""
+	if sv.isDirty {
+		prefix = "[" + Style.ErrorTextColor + "]●[-] "
+	}
+
 	if sv.IsNotesMode() {
 		g := sv.app.CurrentGame()
 		if g == nil {
 			return
 		}
-		body := tview.Escape(g.Name) + ": Notes"
-		prefix := ""
-		if sv.isDirty {
-			prefix = "[" + Style.ErrorTextColor + "]●[-] "
+		body = tview.Escape(g.Name) + ": Notes"
+	} else {
+		if sv.currentSession == nil {
+			return
 		}
-		sv.textAreaFrame.SetTitle(" " + prefix + "[::b]" + body + keyHelp)
-		return
+		body = tview.Escape(sv.currentSession.GameName) + ": " + tview.Escape(sv.currentSession.Name)
 	}
-	if sv.currentSession == nil {
-		return
-	}
-	body := tview.Escape(sv.currentSession.GameName) + ": " + tview.Escape(sv.currentSession.Name)
-	prefix := ""
-	if sv.isDirty {
-		prefix = "[" + Style.ErrorTextColor + "]●[-] "
-	}
-	sv.textAreaFrame.SetTitle(" " + prefix + "[::b]" + body + keyHelp)
+
+	sv.textAreaFrame.SetTitle(" " + prefix + "[::b]" + body + keyHelp + counts)
+}
+
+func (sv *SessionView) wordCharCount() string {
+	text := sv.TextArea.GetText()
+	words := len(strings.Fields(text))
+	chars := len([]rune(text))
+	return fmt.Sprintf("[::d] %d words · %d chars ", words, chars)
 }
 
 func (sv *SessionView) startAutosave() {
