@@ -596,5 +596,14 @@ func (sv *SessionView) SelectNotes() {
 
 func (sv *SessionView) InsertAtCursor(template string) {
 	_, start, _ := sv.TextArea.GetSelection()
+	sv.TextArea.SetMovedFunc(func() {
+		sv.TextArea.SetMovedFunc(nil)
+		row, _, _, _ := sv.TextArea.GetCursor()
+		offsetRow, _ := sv.TextArea.GetOffset()
+		_, _, _, height := sv.TextArea.GetInnerRect()
+		if row >= offsetRow+height {
+			sv.TextArea.SetOffset(row-height+1, 0)
+		}
+	})
 	sv.TextArea.Replace(start, start, template)
 }
